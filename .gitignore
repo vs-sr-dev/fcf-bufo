@@ -1,0 +1,24 @@
+# Build output
+build/
+
+# Emulator snapshots and scratch captures
+shots/
+snap/
+
+# Local tooling settings (machine specific)
+.claude/
+
+# Channel F BIOS images.
+# These are copyrighted Fairchild material and are NOT redistributed
+# here. See the README for how to supply your own.
+bios/
+emu/roms/
+
+# MAME per-machine config (input mappings etc.), machine specific
+cfg/
+
+# Third-party assembler checkout (dasm, GPL). See the README.
+tools/dasm/
+
+__pycache__/
+*.pyc
