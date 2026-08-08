@@ -1,14 +1,14 @@
--- play.lua - pilota il controller da script, per provare le regole di
--- gioco (investimento, annegamento, tronchi, tane) senza mani.
+-- play.lua - drive the controller from a script, to exercise the game
+-- rules (getting run over, drowning, riding logs, home bays) hands-free.
 --
--- Senza questo si possono verificare solo le cose che accadono da sole:
--- il tempo che scade. Tutto il resto richiede input.
+-- Without this you can only verify what happens on its own: the timer
+-- running out. Everything else needs input.
 --
--- Variabili d'ambiente:
---   PLAY_LIST   "frame:tasto,frame:tasto,..."  es. "120:UP,180:UP"
---               tasti: UP DOWN LEFT RIGHT
---   PLAY_SHOTS  frame in cui scattare uno snapshot, separati da virgola
---   PLAY_DUMP   se "1", elenca le porte di input e termina
+-- Environment variables:
+--   PLAY_LIST   "frame:key,frame:key,..."  e.g. "120:UP,180:UP"
+--               keys: UP DOWN LEFT RIGHT START
+--   PLAY_SHOTS  comma-separated frames at which to take a snapshot
+--   PLAY_DUMP   if "1", list the input ports and quit
 local script = {}
 for f, k in (os.getenv("PLAY_LIST") or ""):gmatch("(%d+):(%u+)") do
     script[tonumber(f)] = k
@@ -24,18 +24,18 @@ local ioport = manager.machine.ioport
 
 if os.getenv("PLAY_DUMP") == "1" then
     for pname, port in pairs(ioport.ports) do
-        print("PORTA " .. pname)
+        print("PORT " .. pname)
         for fname, _ in pairs(port.fields) do
-            print("   campo: " .. fname)
+            print("   field: " .. fname)
         end
     end
     manager.machine:exit()
     return
 end
 
--- Il gioco legge il controller DESTRO (porta 1 = P_JOY_R), che in MAME
--- e' ":RIGHT_C". Nomi esatti: cercare per sottostringa pescherebbe i
--- campi del P2, o "P1 Pull Up" al posto di "P1 Up".
+-- The game reads the RIGHT controller (port 1 = P_JOY_R), which MAME
+-- calls ":RIGHT_C". Exact names only: a substring search would pick up
+-- the P2 fields, or "P1 Pull Up" instead of "P1 Up".
 local RIGHT = ioport.ports[":RIGHT_C"]
 local FIELDS = {}
 local function findfield(name)
@@ -48,8 +48,8 @@ local heldfor = 0
 
 local function tick()
     n = n + 1
-    -- il gioco reagisce al FRONTE di salita: tieni premuto qualche frame
-    -- e poi rilascia, altrimenti il tasto non viene mai visto rilasciato
+    -- the game reacts to the RISING EDGE: hold for a few frames and then
+    -- release, otherwise the key is never seen going back up
     if held then
         heldfor = heldfor - 1
         if heldfor <= 0 then
@@ -66,12 +66,12 @@ local function tick()
             heldfor = 8
             print(string.format("PLAY: frame %d -> %s", n, key))
         else
-            print("PLAY: campo non trovato per " .. key)
+            print("PLAY: no field found for " .. key)
         end
     end
     if shots[n] then
         manager.machine.video:snapshot()
-        print(string.format("PLAY: scatto al frame %d", n))
+        print(string.format("PLAY: snapshot at frame %d", n))
     end
     if n > last + 30 then manager.machine:exit() end
 end
@@ -81,11 +81,12 @@ FIELDS.DOWN = findfield("P1 Down")
 FIELDS.LEFT = findfield("P1 Left")
 FIELDS.RIGHT = findfield("P1 Right")
 
--- START sta sui pulsanti frontali della console, non sul controller
+-- START is on the console front panel, not on the controller
 local PANEL = ioport.ports[":PANEL"]
 FIELDS.START = PANEL and PANEL.fields["START (Button 4)"] or nil
 for k, v in pairs(FIELDS) do
-    print(string.format("PLAY: %s -> %s", k, v and "ok" or "MANCANTE"))
+    print(string.format("PLAY: %s -> %s", k, v and "ok" or "MISSING"))
 end
 
+-- kept in a global on purpose: see the note in measure.lua
 _G.keepalive = emu.add_machine_frame_notifier(tick)

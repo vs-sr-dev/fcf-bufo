@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-vcheck.py - campiona uno snapshot MAME del Channel F in coordinate VRAM.
+vcheck.py - sample a MAME Channel F snapshot in VRAM coordinates.
 
-Lo snapshot MAME contiene l'area visibile del Channel F, cioe' le colonne
-4..105 e le righe 4..61 della VRAM, scalate di un fattore intero.
-Questo script fa la conversione inversa: dato (x,y) in coordinate VRAM,
-dice che colore c'e'.
+A MAME snapshot holds the Channel F's visible area, i.e. VRAM columns
+4..105 and rows 4..61, scaled by an integer factor. This script does the
+inverse conversion: given (x,y) in VRAM coordinates, it tells you which
+colour is there.
 
-Uso:
-    python vcheck.py shot.png                    # mappa d'insieme
-    python vcheck.py shot.png 20,17 40,17 60,17  # campiona punti precisi
+Usage:
+    python vcheck.py shot.png                    # per-row overview
+    python vcheck.py shot.png --map              # every visible pixel, as ASCII
+    python vcheck.py --diff a.png b.png          # what moved between two shots
+    python vcheck.py --game a.png b.png ...      # game state, per snapshot
+    python vcheck.py shot.png 20,17 40,17        # sample exact points
 """
 import sys
 from PIL import Image
 
-# Gli 8 colori fisici del Channel F (da MAME channelf_v.cpp)
+# the 8 physical colours of the Channel F (from MAME channelf_v.cpp)
 PALETTE = {
     (0x10, 0x10, 0x10): "BLACK",
     (0xfd, 0xfd, 0xfd): "WHITE",
@@ -26,12 +29,12 @@ PALETTE = {
     (0xce, 0xd0, 0xff): "LTBLUE",
 }
 
-# area visibile della VRAM
+# the visible area of VRAM
 VIS_X0, VIS_Y0, VIS_W, VIS_H = 4, 4, 102, 58
 
 
 def nearest(rgb):
-    """Nome del colore Channel F piu' vicino, piu' la distanza."""
+    """Name of the closest Channel F colour, plus the distance."""
     best, bestd = None, 1 << 30
     for ref, name in PALETTE.items():
         d = sum((a - b) ** 2 for a, b in zip(rgb, ref))
@@ -44,13 +47,13 @@ class Shot:
     def __init__(self, path):
         self.img = Image.open(path).convert("RGB")
         w, h = self.img.size
-        # lo snapshot copre l'area visibile: ricava la scala
+        # the snapshot covers the visible area: derive the scale from it
         self.sx = w / VIS_W
         self.sy = h / VIS_H
         self.size = (w, h)
 
     def at(self, vx, vy):
-        """Colore alla coordinata VRAM (vx, vy)."""
+        """Colour at VRAM coordinate (vx, vy)."""
         px = int((vx - VIS_X0 + 0.5) * self.sx)
         py = int((vy - VIS_Y0 + 0.5) * self.sy)
         px = max(0, min(self.size[0] - 1, px))
@@ -62,12 +65,12 @@ class Shot:
 
 
 def overview(shot):
-    """Stampa il colore dominante di ogni riga VRAM visibile."""
+    """Print the dominant colour of every visible VRAM row."""
     print(f"snapshot {shot.size[0]}x{shot.size[1]}  "
-          f"scala {shot.sx:.2f}x{shot.sy:.2f}")
+          f"scale {shot.sx:.2f}x{shot.sy:.2f}")
     print()
-    print(" riga | colore prevalente (campionato a x=8,12,...)")
-    print("------+------------------------------------------------")
+    print(" row   | dominant colour (sampled at x=8,12,...)")
+    print("-------+------------------------------------------------")
     prev, start = None, VIS_Y0
     for vy in range(VIS_Y0, VIS_Y0 + VIS_H):
         names = [shot.name_at(vx, vy) for vx in range(8, 100, 4)]
@@ -79,7 +82,7 @@ def overview(shot):
     print(f" {start:2d}-{VIS_Y0+VIS_H-1:2d} | {prev}")
 
 
-# un carattere per colore, per la mappa integrale
+# one character per colour, for the full map
 GLYPH = {
     "BLACK": ".", "WHITE": "#", "RED": "R", "GREEN": "G",
     "BLUE": "B", "LTGRAY": "g", "LTGREEN": "n", "LTBLUE": "c",
@@ -87,13 +90,13 @@ GLYPH = {
 
 
 def fullmap(shot):
-    """Stampa OGNI pixel visibile: niente campionamento, niente scelte mie."""
+    """Print EVERY visible pixel: no sampling, no choices of mine."""
     print(f"snapshot {shot.size[0]}x{shot.size[1]}  "
-          f"scala {shot.sx:.2f}x{shot.sy:.2f}")
-    print("legenda: . nero  # bianco  R rosso  G verde  "
-          "B blu  g grigioch  n verdech  c azzurro")
+          f"scale {shot.sx:.2f}x{shot.sy:.2f}")
+    print("key: . black  # white  R red  G green  "
+          "B blue  g ltgray  n ltgreen  c ltblue")
     print()
-    # righello delle colonne (decine e unita')
+    # column ruler (tens and units)
     xs = range(VIS_X0, VIS_X0 + VIS_W)
     print("     " + "".join(str(x // 10 % 10) for x in xs))
     print("     " + "".join(str(x % 10) for x in xs))
@@ -103,11 +106,11 @@ def fullmap(shot):
 
 
 def diff(pa, pb):
-    """Confronta due snapshot riga per riga: quante colonne sono cambiate
-    e di quanto si e' spostato il contenuto (correlazione a scorrimento)."""
+    """Compare two snapshots row by row: how many columns changed, and how
+    far the content shifted (by sliding correlation)."""
     a, b = Shot(pa), Shot(pb)
     xs = list(range(VIS_X0, VIS_X0 + VIS_W))
-    print(" riga | cambi | scorrimento stimato (px, + = destra)")
+    print(" row  | chgd  | estimated shift (px, + = right)")
     print("------+-------+-------------------------------------")
     for vy in range(VIS_Y0, VIS_Y0 + VIS_H):
         ra = [a.name_at(vx, vy) for vx in xs]
@@ -115,7 +118,7 @@ def diff(pa, pb):
         changed = sum(1 for u, v in zip(ra, rb) if u != v)
         best, bestd = 0, -1
         if changed:
-            # cerca lo shift che allinea meglio la riga vecchia sulla nuova
+            # find the shift that best aligns the old row onto the new one
             for d in range(-40, 41):
                 m = sum(1 for i, v in enumerate(rb)
                         if 0 <= i - d < len(ra) and ra[i - d] == v)
@@ -123,18 +126,21 @@ def diff(pa, pb):
                     best, bestd = d, m
         note = "" if not changed else f"{best:+3d}  (match {bestd}/{len(xs)})"
         print(f" y{vy:2d}  | {changed:5d} | {note}")
+    print()
+    print("NOTE: the lane patterns are periodic, so the shift is only")
+    print("determined modulo the lane's period (+12 can be -20 at period 32).")
+    print("Always compare against the period before calling a direction wrong.")
 
 
 def game(paths):
-    """Riassume lo stato di gioco leggibile dallo schermo, per ogni shot:
-    dove sta il rospo, quante vite, quanto tempo, e se c'e' un oggetto
-    sotto la colonna centrale del rospo (cioe' se la morte e' motivata)."""
+    """Summarise the game state readable off the screen, per snapshot: where
+    the toad is, lives, time left, and what sits next to it."""
     LANE_Y0, LANE_H = 12, 5
-    print("  shot | corsia  y      x    | vite | tempo | sotto il centro")
-    print("-------+---------------------+------+-------+----------------")
+    print("  shot | lane    y      x    | lives | time  | beside the toad")
+    print("-------+---------------------+-------+-------+----------------")
     for p in paths:
         s = Shot(p)
-        # il rospo e' l'unico verde fuori dalla fascia di status
+        # the toad is the only green thing outside the status band
         pix = [(vx, vy)
                for vy in range(LANE_Y0, VIS_Y0 + VIS_H)
                for vx in range(VIS_X0, VIS_X0 + VIS_W)
@@ -143,14 +149,13 @@ def game(paths):
             y0 = min(v for _, v in pix)
             x0 = min(u for u, _ in pix)
             lane = (y0 - LANE_Y0) // LANE_H
-            # Cosa c'e' nella corsia accanto al rospo. Non si puo'
-            # leggere direttamente sotto la sua colonna centrale: lo
-            # sprite la riempie su tutte e quattro le righe (di
-            # proposito, e' la colonna che check_frog esamina) e si
-            # leggerebbe il rospo stesso.
-            # I due vicini bastano: gli oggetti sono larghi almeno 8 e
-            # il rospo 5, quindi se un oggetto copre il centro deborda
-            # per forza da almeno un lato.
+            # What the lane holds next to the toad. It cannot be read
+            # directly under its centre column: the sprite fills that
+            # column on all four rows (deliberately - it is the column
+            # check_frog examines), so you would read the toad itself.
+            # The two neighbours are enough: objects are at least 8 wide
+            # and the toad is 5, so anything covering the centre has to
+            # stick out on at least one side.
             under = (f"{s.name_at(x0 - 1, y0 + 1)}|"
                      f"{s.name_at(x0 + 5, y0 + 1)}")
             pos = f"{lane:2d}   {y0:2d}    {x0:3d}"
@@ -160,7 +165,7 @@ def game(paths):
                     if s.name_at(vx, 6) == "WHITE") // 3
         timer = sum(1 for vx in range(4, 100) if s.name_at(vx, 9) == "WHITE")
         name = p.split("/")[-1].split("\\")[-1]
-        print(f" {name:5s} | {pos} | {lives:4d} | {timer:5d} | {under}")
+        print(f" {name:5s} | {pos} | {lives:5d} | {timer:5d} | {under}")
 
 
 def main():

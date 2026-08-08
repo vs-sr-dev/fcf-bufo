@@ -40,6 +40,8 @@ Python 3 with Pillow, and MAME if you want to run it.
 git clone https://github.com/dasm-assembler/dasm tools/dasm
 # build dasm into tools/dasm/bin/dasm.exe
 
+$env:MAME = "C:\path\to\mame.exe"   # or pass -Mame on each call
+
 ./build.ps1                  # assemble src/bufo.asm -> build/bufo.bin
 ./build.ps1 -Run             # assemble and launch MAME
 ./build.ps1 -Shot            # assemble, run 4 s headless, analyse a snapshot

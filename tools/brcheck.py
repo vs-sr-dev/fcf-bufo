@@ -1,37 +1,37 @@
 #!/usr/bin/env python3
 """
-brcheck.py - verifica che ogni branch relativo del listato dasm atterri
-             davvero sull'etichetta scritta nel sorgente.
+brcheck.py - verify that every relative branch in a dasm listing really
+             lands on the label written in the source.
 
-Perche' esiste: i branch della F8 hanno uno spostamento di UN byte con
-segno (-128..+127). Se l'etichetta e' piu' lontana, dasm **tronca il
-valore senza emettere alcun errore** e il programma salta in un punto
-arbitrario. E' successo davvero:
+Why it exists: F8 branches carry a displacement of ONE signed byte
+(-128..+127). If the label is farther away, dasm **truncates the value
+without emitting any error** and the program jumps somewhere arbitrary.
+This actually happened:
 
-    09e5   94 7f   bnz lu_lane      ->  09e6 + 127 = 0a65   (dentro edge_run)
+    09e5   94 7f   bnz lu_lane      ->  09e6 + 127 = 0a65   (inside edge_run)
 
-servivano -129. Il risultato era un loop che non iterava mai e una banda
-di pixel casuali sullo schermo: sintomi che sembrano bug del codice.
+-129 was needed. The result was a loop that never iterated plus a band of
+random pixels on screen: symptoms that look like bugs in the code.
 
-Uso:
+Usage:
     python brcheck.py build/bufo.lst
-Esce con codice 1 se trova almeno un branch sbagliato.
+Exits with code 1 if it finds at least one wrong branch.
 """
 import re
 import sys
 
-# istruzioni di salto relativo della F8: opcode + 1 byte di spostamento
+# F8 relative-branch instructions: opcode + 1 displacement byte
 BRANCH = {
     "br", "bp", "bc", "bz", "bt", "bm", "bnc", "bnz", "bno", "bf", "br7",
 }
 
-# righe del listato: numero, indirizzo, byte esadecimali, sorgente
+# listing lines: line number, address, hex bytes, source
 LINE = re.compile(
     r"^\s*(\d+)\s+([0-9a-f]{4})\s+([0-9a-f ]*?)\s{2,}(.*)$", re.I)
 
 
 def parse(path):
-    """Ritorna (etichette, istruzioni di salto)."""
+    """Return (labels, branch instructions)."""
     labels, branches = {}, []
     for raw in open(path, encoding="utf-8", errors="replace"):
         m = LINE.match(raw.rstrip("\n"))
@@ -42,7 +42,7 @@ def parse(path):
         src = src.split(";")[0].rstrip()
         if not src:
             continue
-        # riga di sola etichetta: nessun byte emesso
+        # label-only line: no bytes emitted
         if not byts.strip():
             name = src.strip()
             if re.fullmatch(r"[A-Za-z_.][\w.]*", name):
@@ -51,11 +51,7 @@ def parse(path):
         parts = src.split()
         if not parts:
             continue
-        # il sorgente puo' iniziare con un'etichetta sulla stessa riga
-        if len(parts) >= 2 and parts[0].lower() not in BRANCH:
-            mnem, rest = parts[0].lower(), parts[1:]
-        else:
-            mnem, rest = parts[0].lower(), parts[1:]
+        mnem, rest = parts[0].lower(), parts[1:]
         if mnem not in BRANCH or not rest:
             continue
         hexb = byts.split()
@@ -77,26 +73,26 @@ def main():
     checked = 0
     for lineno, addr, mnem, target, disp in branches:
         if target not in labels:
-            continue                      # operando non simbolico: salto
+            continue                      # non-symbolic operand: skip
         checked += 1
         want = labels[target]
-        got = addr + 1 + disp             # verificato su un branch corretto
+        got = addr + 1 + disp             # confirmed against a correct branch
         if got != want:
             bad += 1
             need = want - (addr + 1)
-            print(f"  riga {lineno}: {mnem} {target}")
-            print(f"    a ${addr:04X}: atterra a ${got:04X}, "
-                  f"ma {target} e' a ${want:04X}")
+            print(f"  line {lineno}: {mnem} {target}")
+            print(f"    at ${addr:04X}: lands on ${got:04X}, "
+                  f"but {target} is at ${want:04X}")
             if -128 <= need <= 127:
-                # lo spostamento giusto ci stava: non e' un troncamento,
-                # e' un'incoerenza fra byte emessi e sorgente
-                print(f"    spostamento emesso {disp:+d}, "
-                      f"necessario {need:+d} (in portata): INCOERENTE")
+                # the right displacement would have fit: this is not a
+                # truncation, it is emitted bytes disagreeing with the source
+                print(f"    emitted displacement {disp:+d}, "
+                      f"needed {need:+d} (in range): INCONSISTENT")
             else:
-                print(f"    spostamento necessario {need:+d} "
-                      f"(fuori da -128..+127): TRONCATO, "
-                      f"spezzare il salto o usare jmp")
-    print(f"brcheck: {checked} branch verificati, {bad} sbagliati")
+                print(f"    needed displacement {need:+d} "
+                      f"(outside -128..+127): TRUNCATED, "
+                      f"split the jump or use jmp")
+    print(f"brcheck: {checked} branches verified, {bad} wrong")
     return 1 if bad else 0
 
 
