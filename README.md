@@ -1,5 +1,9 @@
 # BUFO
 
+<p align="center">
+  <img src="docs/media/cover.png" alt="BUFO — Channel F Edition" width="420">
+</p>
+
 A road-and-river crossing game for the **Fairchild Channel F** (1976), written
 from scratch in F8 assembly. 2 KiB cartridge, 64 bytes of RAM, no libraries.
 
@@ -7,6 +11,18 @@ from scratch in F8 assembly. 2 KiB cartridge, 64 bytes of RAM, no libraries.
 
 *The toad riding a log across the river. Grey means you can stand on it —
 everywhere on the screen.*
+
+## Play it now
+
+You do not need to build anything: grab `bufo.bin` from the
+[latest release](https://github.com/vs-sr-dev/fcf-bufo/releases/latest) — a
+plain 2 KiB Channel F cartridge image.
+
+- **MAME**: `mame channelf -cart bufo.bin` (needs the Channel F BIOS, see below)
+- **RetroArch**: the *FreeChaF* core loads `.bin` directly
+- **Real hardware**: burn it to any 2 KiB Channel F multicart or EPROM cart
+
+Building it yourself is described further down.
 
 ## What it is
 
@@ -70,7 +86,7 @@ tools/vcheck.py     reads MAME snapshots back in VRAM coordinates
 tools/measure.lua   snapshots at exact frames
 tools/play.lua      drives the controller from a script
 tools/probe.lua     PC0 histogram, to see where the CPU actually is
-docs/               hardware notes (Italian)
+docs/               hardware notes, and the cover art
 DEVLOG.md           the quirks and gotchas, and what they cost
 ```
 
